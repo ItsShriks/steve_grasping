@@ -1,0 +1,16 @@
+# Camera only (the real robot's tool since 2026-10-14): D415 on a short post at the flange, no gripper.
+# The WBC's end effector `pinch` is a virtual grasp point on the flange axis, where the Robotiq 2F-85's
+# pinch point was (14.9 cm beyond the flange) — so poses, the figure-8 and earlier logs stay comparable.
+name: camera_only
+model: models/camera_only/d415_on_flange.xml
+gripper: false            # nothing to close: active perception goes to the grasp pose only (--goto_grasp_only)
+own_camera: true          # replaces the model's D405 wrist camera (sim camera = the calibrated D415)
+grasp_style: topdown      # approach from above, z of the grasp frame pointing down
+grasp_dz: 0.05            # hover this far above the object centre at the "grasp" pose [m]; the camera
+                          # would end ~1 cm above a 6.5 cm ball at 0 (pinch 15 cm beyond the flange)
+mount:                    # tool0 -> tool base frame
+  xyz: [0.0, 0.0, 0.0]
+  rpy_deg: [0.0, 0.0, 0.0]
+pinch:                    # grasp point in the tool base frame (z = approach, y = closing axis)
+  xyz: [0.0, 0.0, 0.1488]
+  rpy_deg: [0.0, 0.0, -90.0]

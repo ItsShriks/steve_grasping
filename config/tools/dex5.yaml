@@ -1,0 +1,24 @@
+# Unitree Dex5-1 (right hand), coaxial on the flange. PROVISIONAL: the model, mount and actuators are in
+# place; the side-grasp synergy below is a first estimate and NOT validated yet (sim lift test pending).
+name: dex5
+model: models/dex5_1/dex5_right.xml
+gripper: true
+own_camera: false
+grasp_style: side         # approach horizontally along the palm normal, thumb + fingers close across the ball
+grasp_dz: 0.0
+mount:
+  # hand base frame in tool0: the wrist flange face (hand frame (-0.023, -0.0398, -0.0137)) on the flange,
+  # fingers (hand +y) along tool z, palm normal (hand +z) along tool x; adapter plate thickness 1 cm
+  flange_in_hand: [-0.023, -0.0398, -0.0137]
+  adapter_length: 0.010
+  hand_axes_in_tool: [[0, 0, 1], [1, 0, 0], [0, 1, 0]]   # rows: tool x, y, z in hand coordinates
+  yaw_deg: 0.0            # rotation of the hand about the tool axis (cable routing / camera side)
+pinch:                    # grasp centre in the hand base frame: z = palm normal (approach), y = fingers
+  xyz: [0.005, 0.065, 0.075]
+  rpy_deg: [0.0, 0.0, 0.0]
+sim:
+  synergies:              # joint targets [rad] of the 16 actuated joints (dex5r_<joint>)
+    open: {Yaw_11: 0.0, Roll_12: 1.6, Pitch_13: 0.0, Pitch_14: 0.0, Pitch_22: 1.0, Pitch_23: 0.2,
+           Pitch_32: 1.0, Pitch_33: 0.2, Pitch_42: 0.3, Pitch_43: 0.0, Pitch_52: 0.3, Pitch_53: 0.0}
+    close: {Yaw_11: 0.0, Roll_12: 1.6, Pitch_13: 1.7, Pitch_14: 0.0, Pitch_22: 1.57, Pitch_23: 1.2,
+            Pitch_32: 1.57, Pitch_33: 1.2, Pitch_42: 0.3, Pitch_43: 0.0, Pitch_52: 0.3, Pitch_53: 0.0}

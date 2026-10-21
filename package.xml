@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>steve_grasping</name>
+  <version>1.0.0</version>
+  <description>Tools on Steve's UR5e flange and grasping with them: camera only (D415), Robotiq 2F-85, Unitree Dex5-1 — MuJoCo models attached to the WBC's robot model, tool configs (grasp point, gripper commands)</description>
+  <maintainer email="nakhyeshrikar@icloud.com">ItsShriks</maintainer>
+  <license>MIT</license>
+
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

@@ -1,0 +1,40 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Camera only (no gripper): the RealSense D415 on a short post at the UR5e flange, looking along the
+     flange axis — the real robot's tool since 2026-10-14. Attached by steve_grasping.robot_model at the
+     flange (`hand_mount` = UR tool0: z out of the flange; MuJoCo's attachment frame matches the URDF's
+     ur5etool0 exactly with the arm mounted at +90 deg).
+
+     Camera pose = the eye-in-hand calibration ur5etool0 -> gripper_camera_color_optical_frame
+     (steve_wbc/config/gripper_camera.yaml, 2026-10-14: xyz 0.0366 -0.0049 0.0479 m, rpy 0.6 0.2 179.3 deg).
+     After a new calibration copy its xyz / quat here (optical frame body) — the MuJoCo camera is the
+     optical frame turned 180 deg about x (MuJoCo looks along -z with image up +y).
+     The D415 replaces the model's D405 wrist camera (robot_model removes `wrist_d405_mount`). -->
+<mujoco model="camera_only">
+  <compiler angle="radian" />
+  <default>
+    <default class="cam_tool">
+      <geom contype="1" conaffinity="1" group="3" density="0" rgba="0.3 0.3 0.35 1" />
+      <default class="cam_tool_visual">
+        <geom contype="0" conaffinity="0" group="2" density="0" />
+      </default>
+    </default>
+  </default>
+  <worldbody>
+    <body name="camera_tool" childclass="cam_tool">
+      <inertial pos="0.03 0 0.035" mass="0.12" diaginertia="0.0001 0.0001 0.0001" />
+      <!-- short aluminium post from the flange to the camera -->
+      <geom name="camera_post" type="box" size="0.012 0.012 0.022" pos="0.012 0 0.022" />
+      <geom name="camera_post_visual" class="cam_tool_visual" type="box" size="0.012 0.012 0.022"
+            pos="0.012 0 0.022" rgba="0.7 0.7 0.7 1" />
+      <body name="gripper_camera_color_optical_frame" pos="0.03662 -0.00488 0.04789"
+            quat="0.00581 -0.0016 0.00518 0.99997">
+        <!-- D415 housing 99 x 23 x 20 mm (optical frame: x along the long side, z forward), lens at the front -->
+        <geom name="d415_housing" type="box" size="0.0495 0.0115 0.010" pos="0.0175 0 -0.010" />
+        <geom name="d415_visual" class="cam_tool_visual" type="box" size="0.0495 0.0115 0.010" pos="0.0175 0 -0.010"
+              rgba="0.15 0.15 0.15 1" />
+        <!-- colour camera: D415 69 x 42 deg FOV (vertical 42) -->
+        <camera name="wrist_cam" quat="0 1 0 0" fovy="42" />
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

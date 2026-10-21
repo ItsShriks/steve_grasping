@@ -1,0 +1,20 @@
+# Robotiq 2F-85 (MuJoCo Menagerie model), the gripper the simulation was developed with.
+name: robotiq_2f85
+model: models/robotiq_2f85/robotiq_2f85.xml
+gripper: true
+own_camera: false         # keeps the model's D405 wrist camera
+grasp_style: topdown
+grasp_dz: -0.015          # pinch point 1.5 cm below the object centre: the pads close at the equator
+mount:
+  xyz: [0.0, 0.0, 0.0]
+  rpy_deg: [0.0, 0.0, 0.0]
+pinch:                    # = the menagerie `pinch` site (base 3.8 mm off the mount, pinch 14.5 cm beyond)
+  xyz: [0.0, 0.0, 0.1488]
+  rpy_deg: [0.0, 0.0, -90.0]
+sim:
+  actuator: fingers_actuator
+  open: 0.0
+  close: 255.0
+real:                     # control_msgs/GripperCommand position [rad of the knuckle]
+  open: 0.0
+  close: 0.7929
