@@ -10,6 +10,10 @@
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>control_msgs</exec_depend>
+  <!-- real Ability Hand: ah_messages + ah_ros_py from github.com/ItsShriks/ability-hand-ros2 (not in rosdep) -->
 
   <test_depend>python3-pytest</test_depend>
 

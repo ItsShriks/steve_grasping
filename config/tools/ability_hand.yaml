@@ -3,33 +3,38 @@
 # Real hand: ah_ros_py's ah_node (github.com/ItsShriks/ability-hand-ros2) + steve_grasping's
 # ability_hand_gripper (GripperCommand -> synergy) — see the README.
 #
-# Top-down grasp: the hand comes down vertically with the object in front of its palm (+y of the hand
-# frame); the four fingers close on it from one side, the opposed thumb from the other -> the WBC's
-# closing axis (pinch y) = hand y.
+# Palm-down wrap grasp: the hand comes down vertically with the palm (+y of the hand frame) facing the
+# object, the flange horizontal; fingers and thumb close around it. Robust to +-1 cm / 1.2 cm too high in
+# the lift test (tools/sim_grasp_test.py); the fingers-down grasp (palm sideways) only worked within a few mm.
 name: ability_hand
 model: models/ability_hand/abh_right_large.xml
 gripper: true
 own_camera: false         # keeps the model's D405 wrist camera (sim); real camera mount: open point
 grasp_style: topdown
 grasp_dz: 0.0             # the grasp point is the object centre
+hold_ref: lifted          # the wrap pulls the object into the palm: the hold check measures slip from where it
+                          # sat after the lift, not from the grasp point
 support_contact: true     # the fingers wrap down to the table (wrap grasp of a ball lying on it): in DESCEND /
                           # GRASP the WBC drops the table margin for the hand's collision spheres (not the arm's)
 mount:                    # tool0 -> hand base (centre of the hand's wrist flange face, fingers along z)
   xyz: [0.0, 0.0, 0.0]    # + the UR adapter plate thickness once it is known
-  rpy_deg: [0.0, 0.0, 225.0]  # yaw about the flange axis: the palm turned towards the D405 (wrist_cam), which
-                              # then sees the whole ball from 12 cm above to the grasp (ray test; yaw 0: hidden
-                              # behind the hand). Real robot: set to the measured mount
+  rpy_deg: [0.0, 0.0, 180.0]  # roll of the hand about the flange axis: 180 puts the wrist camera beside the palm,
+                              # 1.6 cm above the grasp point, looking at the object down to contact (ball visible
+                              # 100/100/82/25 % at 15/10/5/0 cm before the grasp; roll 0: camera on top of the hand,
+                              # 0 %) -> a rolling ball is tracked up to the close. Real: measure the mount
 pinch:                    # object centre in the hand frame at the grasp (sim lift test: tools/sim_grasp_test.py)
-  xyz: [-0.010, 0.067, 0.118]
-  rpy_deg: [0.0, 0.0, 0.0]
+  xyz: [-0.010, 0.055, 0.110]   # 5.5 cm out of the palm, 11 cm along the fingers
+  rpy_deg: [-55.0, 0.0, 0.0]    # palm down, tilted 35 deg (fingers pointing down): approach (pinch z) 35 deg from the
+                                # palm normal. Flat (-90: flange horizontal) the forearm / wrist came down to the
+                                # table and the WBC's margin stopped the descent; tilted the grasp is as robust
 
 # Synergies in the hand API's units — degrees, order [index, middle, ring, pinky, thumb flexor, thumb
 # rotator]; fingers / flexor 0 (open) .. 100, rotator 0 .. -100 (-100: thumb opposes the fingers).
 # Used as they are on the real hand (Digits on /ability_hand/<side>/target/position) and, in radians,
 # for the MuJoCo position actuators.
 synergies:
-  open:  [25.0, 25.0, 25.0, 25.0, 10.0, -90.0]    # pre-shape: fingers slightly curled (table clearance), thumb turned in
-  close: [80.0, 80.0, 80.0, 80.0, 70.0, -90.0]    # past contact: the motors squeeze at their limit
+  open:  [10.0, 10.0, 10.0, 10.0, 0.0, -90.0]     # pre-shape: fingers straight, thumb turned under the palm, not flexed
+  close: [95.0, 95.0, 95.0, 95.0, 90.0, -90.0]    # wrap: fingers and thumb close around the object, squeezing at the limit
 sim:
   actuators: [abh_index_mcp, abh_middle_mcp, abh_ring_mcp, abh_pinky_mcp, abh_thumb_flexor, abh_thumb_rotator]
   units: deg

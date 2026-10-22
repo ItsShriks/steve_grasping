@@ -26,6 +26,7 @@ setup(
         *tree('models'),       # MuJoCo models of the tools (attached to steve_wbc's robot model)
         *tree('description'),  # Dex5-1 URDF + meshes (unitree_ros, BSD-3)
         *tree('config'),       # tool configs (config/tools/<tool>.yaml)
+        *tree('launch'),       # ability_hand.launch.py (ah_node + GripperCommand bridge)
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -34,5 +35,7 @@ setup(
     description='Tools on the UR5e flange (camera only, Robotiq 2F-85, Dex5-1) and grasping with them',
     license='MIT',
     tests_require=['pytest'],
-    entry_points={'console_scripts': []},
+    entry_points={'console_scripts': [
+        'ability_hand_gripper = steve_grasping.ability_hand_gripper:main',
+    ]},
 )
