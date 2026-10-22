@@ -1,0 +1,39 @@
+# PSYONIC Ability Hand (right, large), coaxial on the flange: fingers along the flange axis.
+# Model: models/ability_hand (tools/build_ability_hand_mjcf.py from psyonicinc/ability-hand-api, MIT).
+# Real hand: ah_ros_py's ah_node (github.com/ItsShriks/ability-hand-ros2) + steve_grasping's
+# ability_hand_gripper (GripperCommand -> synergy) — see the README.
+#
+# Top-down grasp: the hand comes down vertically with the object in front of its palm (+y of the hand
+# frame); the four fingers close on it from one side, the opposed thumb from the other -> the WBC's
+# closing axis (pinch y) = hand y.
+name: ability_hand
+model: models/ability_hand/abh_right_large.xml
+gripper: true
+own_camera: false         # keeps the model's D405 wrist camera (sim); real camera mount: open point
+grasp_style: topdown
+grasp_dz: 0.0             # the grasp point is the object centre
+support_contact: true     # the fingers wrap down to the table (wrap grasp of a ball lying on it): in DESCEND /
+                          # GRASP the WBC drops the table margin for the hand's collision spheres (not the arm's)
+mount:                    # tool0 -> hand base (centre of the hand's wrist flange face, fingers along z)
+  xyz: [0.0, 0.0, 0.0]    # + the UR adapter plate thickness once it is known
+  rpy_deg: [0.0, 0.0, 225.0]  # yaw about the flange axis: the palm turned towards the D405 (wrist_cam), which
+                              # then sees the whole ball from 12 cm above to the grasp (ray test; yaw 0: hidden
+                              # behind the hand). Real robot: set to the measured mount
+pinch:                    # object centre in the hand frame at the grasp (sim lift test: tools/sim_grasp_test.py)
+  xyz: [-0.010, 0.067, 0.118]
+  rpy_deg: [0.0, 0.0, 0.0]
+
+# Synergies in the hand API's units — degrees, order [index, middle, ring, pinky, thumb flexor, thumb
+# rotator]; fingers / flexor 0 (open) .. 100, rotator 0 .. -100 (-100: thumb opposes the fingers).
+# Used as they are on the real hand (Digits on /ability_hand/<side>/target/position) and, in radians,
+# for the MuJoCo position actuators.
+synergies:
+  open:  [25.0, 25.0, 25.0, 25.0, 10.0, -90.0]    # pre-shape: fingers slightly curled (table clearance), thumb turned in
+  close: [80.0, 80.0, 80.0, 80.0, 70.0, -90.0]    # past contact: the motors squeeze at their limit
+sim:
+  actuators: [abh_index_mcp, abh_middle_mcp, abh_ring_mcp, abh_pinky_mcp, abh_thumb_flexor, abh_thumb_rotator]
+  units: deg
+real:                     # control_msgs/GripperCommand position = closure (0 open .. 1 close synergy)
+  open: 0.0
+  close: 1.0
+  side: right             # ah_node topics /ability_hand/<side>/...

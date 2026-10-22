@@ -17,6 +17,7 @@ pinch:                    # grasp centre in the hand base frame: z = palm normal
   xyz: [0.005, 0.065, 0.075]
   rpy_deg: [0.0, 0.0, 0.0]
 sim:
+  actuator_prefix: dex5r_
   synergies:              # joint targets [rad] of the 16 actuated joints (dex5r_<joint>)
     open: {Yaw_11: 0.0, Roll_12: 1.6, Pitch_13: 0.0, Pitch_14: 0.0, Pitch_22: 1.0, Pitch_23: 0.2,
            Pitch_32: 1.0, Pitch_33: 0.2, Pitch_42: 0.3, Pitch_43: 0.0, Pitch_52: 0.3, Pitch_53: 0.0}

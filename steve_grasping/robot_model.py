@@ -39,16 +39,25 @@ def _abs_assets(root, base_dir):
 
 
 def _quat_from_R(R):
-    """Rotation matrix -> (w, x, y, z)."""
+    """Rotation matrix -> (w, x, y, z), Shepperd's method (also exact for 180 deg rotations, where the
+    sign-from-off-diagonals shortcut picks wrong signs)."""
     R = np.asarray(R, float)
-    w = np.sqrt(max(0.0, 1.0 + R[0, 0] + R[1, 1] + R[2, 2])) / 2.0
-    x = np.sqrt(max(0.0, 1.0 + R[0, 0] - R[1, 1] - R[2, 2])) / 2.0
-    y = np.sqrt(max(0.0, 1.0 - R[0, 0] + R[1, 1] - R[2, 2])) / 2.0
-    z = np.sqrt(max(0.0, 1.0 - R[0, 0] - R[1, 1] + R[2, 2])) / 2.0
-    x = np.copysign(x, R[2, 1] - R[1, 2])
-    y = np.copysign(y, R[0, 2] - R[2, 0])
-    z = np.copysign(z, R[1, 0] - R[0, 1])
-    q = np.array([w, x, y, z])
+    t = np.trace(R)
+    i = int(np.argmax([t, R[0, 0], R[1, 1], R[2, 2]]))
+    if i == 0:
+        s = 2.0 * np.sqrt(1.0 + t)
+        q = [0.25 * s, (R[2, 1] - R[1, 2]) / s, (R[0, 2] - R[2, 0]) / s, (R[1, 0] - R[0, 1]) / s]
+    elif i == 1:
+        s = 2.0 * np.sqrt(1.0 + R[0, 0] - R[1, 1] - R[2, 2])
+        q = [(R[2, 1] - R[1, 2]) / s, 0.25 * s, (R[0, 1] + R[1, 0]) / s, (R[0, 2] + R[2, 0]) / s]
+    elif i == 2:
+        s = 2.0 * np.sqrt(1.0 - R[0, 0] + R[1, 1] - R[2, 2])
+        q = [(R[0, 2] - R[2, 0]) / s, (R[0, 1] + R[1, 0]) / s, 0.25 * s, (R[1, 2] + R[2, 1]) / s]
+    else:
+        s = 2.0 * np.sqrt(1.0 - R[0, 0] - R[1, 1] + R[2, 2])
+        q = [(R[1, 0] - R[0, 1]) / s, (R[0, 2] + R[2, 0]) / s, (R[1, 2] + R[2, 1]) / s, 0.25 * s]
+    q = np.array(q)
+    q = q if q[0] >= 0 else -q
     return q / np.linalg.norm(q)
 
 
