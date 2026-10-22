@@ -21,17 +21,22 @@
   </default>
   <worldbody>
     <body name="camera_tool" childclass="cam_tool">
-      <inertial pos="0.03 0 0.035" mass="0.12" diaginertia="0.0001 0.0001 0.0001" />
-      <!-- short aluminium post from the flange to the camera -->
-      <geom name="camera_post" type="box" size="0.012 0.012 0.022" pos="0.012 0 0.022" />
-      <geom name="camera_post_visual" class="cam_tool_visual" type="box" size="0.012 0.012 0.022"
-            pos="0.012 0 0.022" rgba="0.7 0.7 0.7 1" />
+      <inertial pos="0 0 0.03" mass="0.14" diaginertia="0.0001 0.0001 0.0001" />
+      <!-- as in the photos (IMG_2033 / IMG_2034) and the URDF (steve_simulation d415_flange_tool.urdf.xacro):
+           square plate on the flange, short post on the flange axis, D415 housing (99 x 23 x 20 mm)
+           centred on the post with its long side along tool x — the colour camera is at one end -->
+      <geom name="camera_plate" type="box" size="0.03 0.03 0.003" pos="0 0 0.003" />
+      <geom name="camera_plate_visual" class="cam_tool_visual" type="box" size="0.03 0.03 0.003" pos="0 0 0.003"
+            rgba="0.08 0.08 0.08 1" />
+      <geom name="camera_post" type="cylinder" size="0.008 0.011" pos="0 0 0.017" />
+      <geom name="camera_post_visual" class="cam_tool_visual" type="cylinder" size="0.008 0.011" pos="0 0 0.017"
+            rgba="0.08 0.08 0.08 1" />
+      <geom name="d415_housing" type="box" size="0.0495 0.0115 0.010" pos="0 0 0.038" />
+      <geom name="d415_visual" class="cam_tool_visual" type="box" size="0.0495 0.0115 0.010" pos="0 0 0.038"
+            rgba="0.82 0.82 0.84 1" />
+      <!-- colour optical frame = the eye-in-hand calibration (steve_wbc/config/gripper_camera.yaml) -->
       <body name="gripper_camera_color_optical_frame" pos="0.03662 -0.00488 0.04789"
             quat="0.00581 -0.0016 0.00518 0.99997">
-        <!-- D415 housing 99 x 23 x 20 mm (optical frame: x along the long side, z forward), lens at the front -->
-        <geom name="d415_housing" type="box" size="0.0495 0.0115 0.010" pos="0.0175 0 -0.010" />
-        <geom name="d415_visual" class="cam_tool_visual" type="box" size="0.0495 0.0115 0.010" pos="0.0175 0 -0.010"
-              rgba="0.15 0.15 0.15 1" />
         <!-- colour camera: D415 69 x 42 deg FOV (vertical 42) -->
         <camera name="wrist_cam" quat="0 1 0 0" fovy="42" />
       </body>
