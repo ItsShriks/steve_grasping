@@ -9,7 +9,7 @@
 name: ability_hand
 model: models/ability_hand/abh_right_large.xml
 gripper: true
-own_camera: false         # keeps the model's D405 wrist camera (sim); real camera mount: open point
+own_camera: true          # the D415 on the wrist collar beside the palm (camera: below) replaces the model's D405
 grasp_style: topdown
 grasp_dz: 0.0             # the grasp point is the object centre
 hold_ref: lifted          # the wrap pulls the object into the palm: the hold check measures slip from where it
@@ -17,16 +17,34 @@ hold_ref: lifted          # the wrap pulls the object into the palm: the hold ch
 support_contact: true     # the fingers wrap down to the table (wrap grasp of a ball lying on it): in DESCEND /
                           # GRASP the WBC drops the table margin for the hand's collision spheres (not the arm's)
 mount:                    # tool0 -> hand base (centre of the hand's wrist flange face, fingers along z)
-  xyz: [0.0, 0.0, 0.0]    # + the UR adapter plate thickness once it is known
-  rpy_deg: [0.0, 0.0, 180.0]  # roll of the hand about the flange axis: 180 puts the wrist camera beside the palm,
-                              # 1.6 cm above the grasp point, looking at the object down to contact (ball visible
-                              # 100/100/82/25 % at 15/10/5/0 cm before the grasp; roll 0: camera on top of the hand,
-                              # 0 %) -> a rolling ball is tracked up to the close. Real: measure the mount
+  xyz: [0.0, 0.0, 0.0]    # straight on the flange: the camera collar clamps around wrist 3, nothing in between
+  rpy_deg: [0.0, 0.0, 180.0]  # roll of the hand about the flange axis: palm towards -y of tool0, back of the hand +y
+                              # (electronics tray), the D415 beside the palm
 pinch:                    # object centre in the hand frame at the grasp (sim lift test: tools/sim_grasp_test.py)
   xyz: [-0.010, 0.055, 0.110]   # 5.5 cm out of the palm, 11 cm along the fingers
   rpy_deg: [-55.0, 0.0, 0.0]    # palm down, tilted 35 deg (fingers pointing down): approach (pinch z) 35 deg from the
                                 # palm normal. Flat (-90: flange horizontal) the forearm / wrist came down to the
                                 # table and the WBC's margin stopped the descent; tilted the grasp is as robust
+
+# The real wrist camera, a RealSense D415 (99 x 23 x 20 mm, no depth below ~0.30 m), on the 3D-printed wrist collar
+# steve_grasping/hardware/hand_camera_mount (hand_camera_mount.py -> stl/): two halves clamped around UR wrist 3 —
+# palm half: an arm putting the D415 100 mm off the flange axis beside the palm (the Psyonic D405 bracket put its
+# camera at 79 mm, which collided with the thumb), its view tilted 40 deg outwards = along the hand's approach line
+# at 0.3-0.5 m; back half: a tray on the back of the hand for the PSYONIC breakout board and power switch. Clearance
+# (hand open / closed): D415 28 mm, collar 10.7 mm. After mounting: run gripper_camera_calibrator and copy
+# xyz / quat_xyzw from steve_wbc/config/gripper_camera.yaml into xyz / quat_xyzw here.
+camera:
+  xyz: [0.0325, -0.1064, 0.0457]       # colour optical frame in ur5etool0 [m] (gripper_camera.yaml convention)
+  quat_xyzw: [0.0, -0.34202, 0.93969, 0.0]  # optical z along the flange axis tilted 40 deg outwards (-y)
+  fovy_deg: 42                         # D415 colour: 69 x 42 deg
+  min_range: 0.30                      # no depth closer: default --min_detect_range (sim and robot)
+  housing_size: [0.099, 0.023, 0.020]  # in the optical frame: long side (x), height (y), depth along the view (z)
+  housing_offset: [0.0325, 0.0, -0.010]  # housing centre in the optical frame (colour camera ~3.25 cm off-centre)
+  bracket:                             # the printed collar's arm and tray as boxes in ur5etool0: centre xyz, full size [m]
+    - {xyz: [0.0, -0.0585, 0.0025], size: [0.040, 0.033, 0.035]}   # arm, root on the collar
+    - {xyz: [0.0, -0.0850, 0.0200], size: [0.050, 0.020, 0.030]}   # arm, towards the camera plate
+    - {xyz: [0.0, 0.0545, 0.0225], size: [0.074, 0.009, 0.071]}    # electronics tray
+    - {xyz: [0.0, 0.0615, 0.0250], size: [0.074, 0.014, 0.046]}    # breakout board + power switch on it
 
 # Synergies in the hand API's units — degrees, order [index, middle, ring, pinky, thumb flexor, thumb
 # rotator]; fingers / flexor 0 (open) .. 100, rotator 0 .. -100 (-100: thumb opposes the fingers).
@@ -42,3 +60,51 @@ real:                     # control_msgs/GripperCommand position = closure (0 op
   open: 0.0
   close: 1.0
   side: right             # ah_node topics /ability_hand/<side>/...
+
+# Shape-based grasp selection (steve_grasping.shape_grasp, active_perception_wbc --grasp_planner shape): the object's
+# primitive (sphere / cylinder / box, fitted to its depth points, else the target profile) picks one of these. Each
+# type: its grasp frame in the hand base frame (frame: pinch = the pinch site above; z = approach into the object,
+# y = the closing direction), its synergy (default: the synergies above), the fingers that close against the thumb,
+# how it approaches (topdown: z down, rotated about the vertical | side: horizontal, tilted down by elevation_deg),
+# and the object sizes it is for [m] (width = the primitive's narrower horizontal extent, height above the table).
+# Types are tried in this order; the first whose limits fit is used. Validate a type in the lift test:
+#   python3 tools/sim_grasp_test.py --tool ability_hand --grasp pinch --box 0.06 0.025 0.03
+grasp_types:
+  wrap:                   # the palm-down wrap (pinch + synergies above): balls, small round / compact objects
+    frame: pinch
+    approach: topdown
+    min_width: 0.035
+    max_width: 0.085
+    max_height: 0.12
+  pinch:                  # thumb against index + middle, ring / pinky curled out of the way: small, thin or flat objects.
+    # From the hand model (hand_geometry.HandKinematics): with this synergy the pads meet at closure 1 (0.1 cm); at
+    # 0.65 they are 3.6 cm apart around the frame's origin; z = palm -> that point (16 deg from the wrap's approach),
+    # y = thumb -> fingers. Not yet lift-tested.
+    frame: {xyz: [-0.0175, 0.0496, 0.1043], rpy_deg: [65.1, -5.3, -163.4]}
+    synergy:
+      open:  [10.0, 10.0, 100.0, 100.0, 0.0, -80.0]
+      close: [70.0, 70.0, 100.0, 100.0, 65.0, -80.0]
+    fingers: [index, middle]
+    approach: topdown
+    max_width: 0.045
+    max_height: 0.06
+  side:                   # tall upright objects (bottle, can): from the side, tilted down (ability_hand_side.yaml). The
+    # 2026-10-26 sweep found side grasps of a ball only at a few points (the wrist reaches the table when flat):
+    # for objects at least min_height tall, gripped at grip_height of their height. Not yet lift-tested on cylinders.
+    frame: {xyz: [-0.010, 0.055, 0.110], rpy_deg: [0.0, 0.0, 0.0]}
+    approach: side
+    elevation_deg: 30.0
+    grip_height: 0.55
+    min_height: 0.12
+    max_width: 0.085
+
+# Touch check (steve_grasping.hand_feedback): did the hand get the object — from the 30 FSRs (6 per finger, index ..
+# thumb) and the finger positions. sim: MuJoCo touch sensors on the same sites [N]; real: ah_node's FSR values (check
+# their scale with `ros2 topic echo /ability_hand/right/feedback/touch` while pressing a fingertip).
+touch:
+  min_fingers: 2          # the thumb + at least one finger touching: held
+  closed_frac: 0.92       # closed to >= 92 % of the command without touch: empty
+  sim:
+    threshold: 0.3        # N per finger
+  real:
+    threshold: 1.0        # per finger (sum of its 6 FSRs) — calibrate on the hand

@@ -96,3 +96,39 @@ or `stalled` when the fingers stop on an object. Without hardware: `hand_simulat
 
 Open points: the UR adapter plate (mount `xyz`), the real camera mount (beside the palm, as in the sim) and the
 measured roll of the hand on the flange.
+
+## Grasp types, touch check, DexGraspNet 2.0 (Ability Hand)
+
+**Shape-based grasp** (`steve_grasping/shape_grasp.py`, `active_perception_wbc --grasp_planner shape`, the default
+for a tool with `grasp_types`): the object's depth points from every detection (sim: the wrist camera; robot:
+`red_ball_detector`'s `/steve_perception/target_cloud`) are fitted with a sphere, an upright cylinder and an
+upright box; the best fit (else the target profile's shape) picks the hand's grasp type by size — `wrap` (balls,
+compact objects), `pinch` (small / flat: thumb against index + middle), `side` (tall upright objects) — and the
+WBC places that type's frame on the object (a box closes across its narrow side). The hand pre-shapes to the
+type's synergy before the approach; on the robot the type goes to `ability_hand_gripper` on
+`/ability_hand_gripper/grasp_type`.
+
+The `pinch` frame and synergy come from the hand model (`hand_geometry.HandKinematics`: fingertip pads from the FSR
+sites, finger coupling applied); `pinch` and `side` are **not lift-tested yet**:
+
+```bash
+python3 tools/sim_grasp_test.py --tool ability_hand --grasp pinch --box 0.06 0.025 0.03 --viewer
+python3 tools/sim_grasp_test.py --tool ability_hand --grasp side --cylinder 0.06 0.16 --viewer
+python3 tools/sim_grasp_test.py --tool ability_hand --grasp wrap                       # the validated ball wrap
+```
+
+**Touch check** (`hand_feedback.py`): from the 30 FSRs (6 per finger) and the finger positions — `held` (thumb +
+finger touch), `contact`, `blocked` (no fingertip touch, fingers stopped short: a wrap holds with the inner
+segments, which have no FSRs), `empty` (closed through on nothing), `open`. Same code on the robot
+(`ability_hand_gripper` publishes it on `/ability_hand_gripper/grasp_state`) and in MuJoCo (the model's touch
+sensors on the same sites). The WBC (`--touch_check act`, default) re-grasps once when the hand closed `empty`
+(`--grasp_retries`), and on the robot reports success / dropped from it after the hold; in the simulation it
+prints the check next to the ground truth ("agrees" / "DISAGREES"). Thresholds: tool config `touch:` — calibrate
+`real.threshold` on the hand (`ros2 topic echo /ability_hand/right/feedback/touch`).
+
+**DexGraspNet 2.0** (`--grasp_backend dgn2`, model server `dgn2`, setup in
+`steve_perception/model_server/README.md`): learned dexterous grasps of the LEAP hand from one depth view,
+retargeted to the Ability Hand by what they do (`retarget.py`: grasp point between thumb and fingers, approach
+from the knuckles, closing direction thumb -> fingers; pinch when held out at the fingertips with a small
+aperture, else wrap). VGN / Contact-GraspNet predict parallel-jaw grasps: with a hand they only confirm the
+shape-based grasp. Tests: `python3 -m pytest test -v`.

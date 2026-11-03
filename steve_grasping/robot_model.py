@@ -6,7 +6,9 @@ body `hand_mount` at the tool flange (UR tool0: z out of the flange; identical t
 ur5etool0). `compose()` puts the tool's MJCF (models/<tool>/...) there — XML level, so it works with
 every MuJoCo version the WBC runs on — together with its assets, defaults, actuators, equalities and
 contact exclusions, and adds the grasp point site `pinch` (the WBC's end effector: z = approach,
-y = closing axis) from the tool config. A tool with its own camera (camera_only) replaces the D405.
+y = closing axis) from the tool config. A tool with its own camera (camera_only) replaces the D405; a tool
+whose config has a `camera:` section (the D415 on a bracket, e.g. on top of the Ability Hand) gets that
+camera — housing, bracket boxes and the `wrist_cam` — at its calibrated pose (see _add_tool_camera).
 
 All asset paths are made absolute, so the result loads from a string:
     xml = compose(robot_xml_path, load_tool("camera_only"))
@@ -65,6 +67,34 @@ def _fmt(v):
     return " ".join(f"{float(x):.6g}" for x in v)
 
 
+def _box(body, name, pos, full_size, rgba):
+    """Collision box (group 3) + its visual twin (group 2)."""
+    half = _fmt(np.asarray(full_size, float) / 2.0)
+    ET.SubElement(body, "geom", name=name, type="box", pos=_fmt(pos), size=half, contype="1", conaffinity="1",
+                  group="3", density="0", rgba="0.3 0.3 0.35 1")
+    ET.SubElement(body, "geom", name=name + "_visual", type="box", pos=_fmt(pos), size=half, contype="0",
+                  conaffinity="0", group="2", density="0", rgba=rgba)
+
+
+def _add_tool_camera(mount, cam):
+    """The tool config's `camera:` at the flange (tool0): its bracket (boxes in tool0) and the camera body = the
+    colour optical frame (xyz + quat_xyzw in tool0, as gripper_camera.yaml writes them) with the housing box
+    (in the optical frame) and the MuJoCo camera `wrist_cam` (looks along the optical z). Returns the body names."""
+    bracket = ET.SubElement(mount, "body", name="tool_camera_bracket")
+    ET.SubElement(bracket, "inertial", pos="0 0 0.01", mass="0.05", diaginertia="1e-5 1e-5 1e-5")
+    for i, b in enumerate(cam.get("bracket", [])):
+        _box(bracket, f"tool_camera_bracket_{i}", b["xyz"], b["size"], "0.08 0.08 0.08 1")
+    qx, qy, qz, qw = cam["quat_xyzw"]
+    optical = ET.SubElement(mount, "body", name="gripper_camera_color_optical_frame", pos=_fmt(cam["xyz"]),
+                            quat=_fmt([qw, qx, qy, qz]))
+    ET.SubElement(optical, "inertial", pos="0 0 0", mass="0.07", diaginertia="1e-5 1e-5 1e-5")
+    _box(optical, "tool_camera_housing", cam.get("housing_offset", [0, 0, 0]), cam["housing_size"],
+         "0.82 0.82 0.84 1")
+    # MuJoCo cameras look along -z with image up +y: the optical frame (z forward, y down) turned 180 deg about x
+    ET.SubElement(optical, "camera", name="wrist_cam", quat="0 1 0 0", fovy=str(cam.get("fovy_deg", 42)))
+    return "tool_camera_bracket", "gripper_camera_color_optical_frame"
+
+
 def compose(robot_xml, hand, mount_body="hand_mount"):
     """MJCF string of the robot with the tool `hand` (steve_grasping.tools.ToolSpec) at `mount_body`."""
     robot_xml = Path(robot_xml)
@@ -113,6 +143,8 @@ def compose(robot_xml, hand, mount_body="hand_mount"):
     ET.SubElement(hand_body, "site", name="pinch", pos=_fmt(hand.pinch_pos), quat=_fmt(_quat_from_R(hand.pinch_R)),
                   type="sphere", size="0.005", group="5", rgba="0.9 0.9 0.9 1")
     mount.append(hand_body)
+    cam_cfg = (hand.config or {}).get("camera") if hand.own_camera else None
+    cam_bodies = _add_tool_camera(mount, cam_cfg) if cam_cfg else ()
 
     for tag in ("contact", "tendon", "equality", "actuator", "sensor"):
         hs = ht.find(tag)
@@ -127,9 +159,14 @@ def compose(robot_xml, hand, mount_body="hand_mount"):
     rc = rt.find("contact")
     if rc is None:
         rc = ET.SubElement(rt, "contact")
-    for other in ("wrist_3_link", "wrist_d405_mount", "wrist_camera_link"):
+    for other in ("wrist_3_link", "wrist_d405_mount", "wrist_camera_link", *cam_bodies):
         if any(b.get("name") == other for b in rt.iter("body")):
             ET.SubElement(rc, "exclude", body1=other, body2=hand_body.get("name"))
+    # the tool's camera and its bracket are one rigid part on the flange (the fingers still collide with them)
+    for i, cb in enumerate(cam_bodies):
+        ET.SubElement(rc, "exclude", body1=cb, body2="wrist_3_link")
+        for other in cam_bodies[i + 1:]:
+            ET.SubElement(rc, "exclude", body1=cb, body2=other)
     # exclusions that name bodies no longer in the model (the removed D405) would not compile
     bodies = {b.get("name") for b in rt.iter("body")} | {"world"}
     for ex in [e for e in rc if e.tag == "exclude"]:

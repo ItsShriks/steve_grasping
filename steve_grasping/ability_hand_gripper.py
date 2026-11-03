@@ -19,10 +19,19 @@ first goal (the hand stays as it is) unless open_on_start. The goal ends
   stalled       the fingers stopped (no motor moved > 0.5 deg in stall_time) before reaching it: an object
                 is held (closing), or something blocks the hand
   aborted       no position feedback from ah_node, or timeout
+
+Grasp types (tool config grasp_types, e.g. wrap / pinch): a std_msgs/String on grasp_type_topic switches the
+synergy the closure refers to (active_perception_wbc sends it when it chooses the grasp; an open hand pre-shapes
+to the new type at once). Touch check (steve_grasping.hand_feedback): on grasp_state_topic, at 10 Hz, a
+std_msgs/String with JSON {state: open | held | contact | blocked | empty, fingers, touch, closure, cmd_closure}
+from the FSRs (/ability_hand/<side>/feedback/touch) and the finger positions — the WBC's success check on the
+robot. Thresholds: tool config `touch:` (real).
 """
 
 import threading
 import time
+
+import json
 
 import numpy as np
 import rclpy
@@ -30,8 +39,11 @@ from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-from std_msgs.msg import Float32MultiArray
+from rclpy.qos import DurabilityPolicy, QoSProfile
+from std_msgs.msg import Float32MultiArray, String
 
+from steve_grasping.hand_feedback import TouchConfig, closure_of, grasp_state
+from steve_grasping.hand_geometry import grasp_types, synergies
 from steve_grasping.tools import load_tool
 
 MOTORS = ("index", "middle", "ring", "pinky", "thumb_flexor", "thumb_rotator")
@@ -49,12 +61,16 @@ class AbilityHandGripper(Node):
         p("stall_time", 0.3)                           # s without motion -> stalled
         p("timeout", 4.0)                              # s per goal
         p("open_on_start", False)
+        p("grasp_type_topic", "/ability_hand_gripper/grasp_type")
+        p("grasp_state_topic", "/ability_hand_gripper/grasp_state")
         g = lambda n: self.get_parameter(n).value
         tool = load_tool(g("tool"))
         syn = tool.config.get("synergies", {})
         if "open" not in syn or "close" not in syn:
             raise SystemExit(f"[ERROR] tool '{tool.name}' has no synergies.open / .close (API degrees)")
         self.open, self.close = np.asarray(syn["open"], float), np.asarray(syn["close"], float)
+        self.tool, self.gtype, self.cmd = tool, None, 0.0
+        self.touch_cfg = TouchConfig.from_tool(tool, "real")
         side = g("side") or tool.real.get("side", "right")
         try:
             from ah_messages.msg import Digits
@@ -73,6 +89,10 @@ class AbilityHandGripper(Node):
         self.create_subscription(Float32MultiArray, f"/ability_hand/{side}/feedback/touch", self._touch_cb, 10,
                                  callback_group=cb)
         self.create_timer(1.0 / g("rate"), self._stream, callback_group=cb)
+        latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.create_subscription(String, g("grasp_type_topic"), self._type_cb, latched, callback_group=cb)
+        self.state_pub = self.create_publisher(String, g("grasp_state_topic"), 10)
+        self.create_timer(0.1, self._publish_state, callback_group=cb)
         from control_msgs.action import GripperCommand
         self.GripperCommand = GripperCommand
         ActionServer(self, GripperCommand, g("action"), execute_callback=self._execute, callback_group=cb,
@@ -89,6 +109,32 @@ class AbilityHandGripper(Node):
     def _touch_cb(self, msg):
         self.touch = np.asarray(msg.data, float)
 
+    def _type_cb(self, msg):
+        name = msg.data.strip() or None
+        if name is not None and name not in grasp_types(self.tool):
+            self.get_logger().warn(f"grasp type '{name}' not in the tool config: default synergy")
+            name = None
+        o, c = synergies(self.tool, name)
+        with self.lock:
+            self.gtype, self.open, self.close = name, o, c
+            if self.target is not None:  # keep the commanded closure in the new synergy (open: pre-shape)
+                self.target = o + self.cmd * (c - o)
+        self.get_logger().info(f"grasp type {name or 'default'}: open {o.tolist()}, close {c.tolist()} [deg]")
+
+    def state(self):
+        """hand_feedback.GraspState of the hand now (None without position feedback)."""
+        with self.lock:
+            fb, fresh = (None if self.fb is None else self.fb.copy()), time.monotonic() - self.fb_t < 0.5
+            o, c, cmd = self.open.copy(), self.close.copy(), self.cmd
+        if fb is None or not fresh:
+            return None
+        return grasp_state(self.touch, closure_of(fb, o, c), cmd, self.touch_cfg)
+
+    def _publish_state(self):
+        st = self.state()
+        if st is not None:
+            self.state_pub.publish(String(data=json.dumps(dict(st.as_dict(), type=self.gtype))))
+
     def _stream(self):
         with self.lock:
             target = None if self.target is None else self.target.copy()
@@ -100,17 +146,15 @@ class AbilityHandGripper(Node):
 
     def closure(self, pos):
         """Closure 0..1 of a hand position (mean over the motors that differ between the synergies)."""
-        d = self.close - self.open
-        m = np.abs(d) > 1e-6
-        return float(np.clip(np.mean((pos[m] - self.open[m]) / d[m]), 0.0, 1.0)) if m.any() else 0.0
+        return closure_of(pos, self.open, self.close)
 
     # ── action ──────────────────────────────────────────────────────────────
     def _execute(self, goal_handle):
         cmd = goal_handle.request.command
         f = float(np.clip(cmd.position, 0.0, 1.0))
-        target = self.open + f * (self.close - self.open)
         with self.lock:
-            self.target = target
+            target = self.open + f * (self.close - self.open)
+            self.target, self.cmd = target, f
         self.get_logger().info(f"closure {f:.2f} -> {np.round(target, 1).tolist()} deg")
         res = self.GripperCommand.Result()
         t0 = time.monotonic()
@@ -132,11 +176,15 @@ class AbilityHandGripper(Node):
                 res.position = self.closure(fb)
                 if np.all(err < self.tol):
                     res.reached_goal = True
+                    st = self.state()
+                    if f > 0.5 and st is not None:
+                        self.get_logger().info(f"closed through: {st}")
                     goal_handle.succeed()
                     return res
                 if now - t0 > 0.3 and now - last_move_t > self.stall_time:
                     res.stalled = True
-                    touch = "" if self.touch is None else f", touch sum {float(np.sum(self.touch)):.0f}"
+                    st = self.state()
+                    touch = "" if st is None else f"; touch check: {st}"
                     self.get_logger().info(f"stalled at closure {res.position:.2f} (worst motor "
                                            f"{MOTORS[int(np.argmax(err))]} {np.max(err):.0f} deg off{touch})")
                     goal_handle.succeed()
