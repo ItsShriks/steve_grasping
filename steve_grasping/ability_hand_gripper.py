@@ -266,7 +266,14 @@ class AbilityHandGripper(Node):
                     goal_handle.succeed()
                     return res
             elif now - t0 > 1.0:
-                self.get_logger().error("no feedback from smart_hand_node (<hand_ns>/tactile_frame)")
+                # withdraw the command: smart_hand_node keeps the last cmd_pos / grasp_enable and would close the
+                # hand on its own once it is up (e.g. a goal sent during its 2 s FSR calibration). NaN = no target.
+                with self.lock:
+                    self.target, self.cmd = None, 0.0
+                self.pub.publish(Float32MultiArray(data=[float("nan")] * 6))
+                self.arm_pub.publish(Bool(data=False))
+                self.get_logger().error("no feedback from smart_hand_node (<hand_ns>/tactile_frame): goal aborted, "
+                                        "command withdrawn")
                 goal_handle.abort()
                 return res
             if now - t0 > self.timeout:
