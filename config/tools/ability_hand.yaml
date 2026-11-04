@@ -51,8 +51,8 @@ camera:
 # Used as they are on the real hand (Digits on /ability_hand/<side>/target/position) and, in radians,
 # for the MuJoCo position actuators.
 synergies:
-      open:  [25.0, 25.0, 25.0, 20.0, 30.0, -30.0]
-    close: [80.0, 80.0, 80.0, 80.0, 60.0, -30.0]  # wrap: fingers and thumb close around the object, squeezing at the limit
+  open:  [10.0, 10.0, 10.0, 10.0, 0.0, -90.0]     # pre-shape: fingers straight, thumb turned under the palm, not flexed
+  close: [95.0, 95.0, 95.0, 95.0, 90.0, -90.0]    # wrap: fingers and thumb close around the object, squeezing at the limit
 sim:
   actuators: [abh_index_mcp, abh_middle_mcp, abh_ring_mcp, abh_pinky_mcp, abh_thumb_flexor, abh_thumb_rotator]
   units: deg
