@@ -25,7 +25,9 @@ synergy the closure refers to (active_perception_wbc sends it when it chooses th
 to the new type at once). Touch check (steve_grasping.hand_feedback): on grasp_state_topic, at 10 Hz, a
 std_msgs/String with JSON {state: open | held | contact | blocked | empty, fingers, touch, closure, cmd_closure}
 from the FSRs (/ability_hand/<side>/feedback/touch) and the finger positions — the WBC's success check on the
-robot. Thresholds: tool config `touch:` (real).
+robot. Thresholds: tool config `touch:` (real). With touch.real.tare the FSRs are tared (hand_feedback.TouchTare):
+their resting values are learnt whenever the hand is commanded open and its fingers are still, and the threshold
+applies to the rise over them — send an open goal once after start so the tare is taken open.
 """
 
 import threading
@@ -42,7 +44,7 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from std_msgs.msg import Float32MultiArray, String
 
-from steve_grasping.hand_feedback import TouchConfig, closure_of, grasp_state
+from steve_grasping.hand_feedback import TouchConfig, TouchTare, closure_of, finger_touch, grasp_state
 from steve_grasping.hand_geometry import grasp_types, synergies
 from steve_grasping.tools import load_tool
 
@@ -71,6 +73,7 @@ class AbilityHandGripper(Node):
         self.open, self.close = np.asarray(syn["open"], float), np.asarray(syn["close"], float)
         self.tool, self.gtype, self.cmd = tool, None, 0.0
         self.touch_cfg = TouchConfig.from_tool(tool, "real")
+        self.tare = TouchTare(self.touch_cfg.tare_alpha, self.touch_cfg.tare_cap) if self.touch_cfg.tare else None
         side = g("side") or tool.real.get("side", "right")
         try:
             from ah_messages.msg import Digits
@@ -82,6 +85,7 @@ class AbilityHandGripper(Node):
         self.lock = threading.Lock()
         self.target = self.open.copy() if g("open_on_start") else None
         self.fb, self.fb_t, self.touch = None, -np.inf, None
+        self.still_ref, self.moved_t = None, time.monotonic()   # fingers at rest since moved_t (tare)
         cb = ReentrantCallbackGroup()
         self.pub = self.create_publisher(Digits, f"/ability_hand/{side}/target/position", 10)
         self.create_subscription(Float32MultiArray, f"/ability_hand/{side}/feedback/position", self._fb_cb, 10,
@@ -103,11 +107,26 @@ class AbilityHandGripper(Node):
     # ── ah_node topics ──────────────────────────────────────────────────────
     def _fb_cb(self, msg):
         if len(msg.data) >= 6:
+            fb, now = np.asarray(msg.data[:6], float), time.monotonic()
             with self.lock:
-                self.fb, self.fb_t = np.asarray(msg.data[:6], float), time.monotonic()
+                self.fb, self.fb_t = fb, now
+                if self.still_ref is None or np.max(np.abs(fb - self.still_ref)) > 1.0:
+                    self.still_ref, self.moved_t = fb, now
 
     def _touch_cb(self, msg):
-        self.touch = np.asarray(msg.data, float)
+        raw = np.asarray(msg.data, float)
+        if self.tare is not None:
+            # resting: commanded open, the fingers there and still for 0.5 s (nothing should touch the FSRs)
+            with self.lock:
+                now = time.monotonic()
+                resting = (self.target is not None and self.cmd < self.touch_cfg.open_below
+                           and now - self.fb_t < 0.5 and now - self.moved_t > 0.5)
+            first = self.tare.n_rest == 0
+            self.tare.update(raw, resting)
+            if first and self.tare.n_rest:
+                self.get_logger().info("touch tare: resting FSR values taken (hand open), per finger "
+                                       f"{np.round(finger_touch(self.tare.base), 2).tolist()}")
+        self.touch = raw
 
     def _type_cb(self, msg):
         name = msg.data.strip() or None
@@ -128,12 +147,16 @@ class AbilityHandGripper(Node):
             o, c, cmd = self.open.copy(), self.close.copy(), self.cmd
         if fb is None or not fresh:
             return None
-        return grasp_state(self.touch, closure_of(fb, o, c), cmd, self.touch_cfg)
+        touch = self.touch if self.tare is None else self.tare.apply(self.touch)
+        return grasp_state(touch, closure_of(fb, o, c), cmd, self.touch_cfg)
 
     def _publish_state(self):
         st = self.state()
         if st is not None:
-            self.state_pub.publish(String(data=json.dumps(dict(st.as_dict(), type=self.gtype))))
+            d = dict(st.as_dict(), type=self.gtype)
+            if self.tare is not None:   # touch above = the rise over rest; the raw sums and whether rest was seen open
+                d.update(touch_raw=[float(t) for t in finger_touch(self.touch)], tared_open=self.tare.n_rest > 0)
+            self.state_pub.publish(String(data=json.dumps(d)))
 
     def _stream(self):
         with self.lock:

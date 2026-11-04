@@ -107,4 +107,7 @@ touch:
   sim:
     threshold: 0.3        # N per finger
   real:
-    threshold: 1.0        # per finger (sum of its 6 FSRs) — calibrate on the hand
+    tare: true            # FSRs rest at ~1.2 each (ah_wrapper adds 0.88 to non-zero raw values; thumb preloaded,
+                          # pinky reads 0 = dead/unconnected): threshold on the rise over rest, learnt while open
+    threshold: 1.0        # rise per finger (sum of its 6 FSRs) over rest — calibrate (tools/touch_calib.py)
+    closed_frac: 0.65     # an empty close reaches only 0.74-0.87 of the command (2026-11-04) — set from a ball run

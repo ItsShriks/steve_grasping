@@ -210,3 +210,40 @@ def test_fit_size_of_an_eroded_cap():
     p = (c + 0.025 * u)[(u @ v) > np.cos(np.radians(45))]
     f = fit_primitive(p + rng.normal(0, 0.003, p.shape), TABLE)
     assert f is not None and f.kind == "sphere" and abs(f.width - 0.05) < 0.005
+
+
+def test_touch_tare():
+    from steve_grasping.hand_feedback import TouchTare
+    cfg = TouchConfig(threshold=1.0, tare=True)
+    rest = np.full(30, 1.2)
+    rest[18:24] = 0.0                  # a dead pinky reads 0
+    rest[24:30] = 2.1                  # a preloaded thumb rests higher
+    assert grasp_state(rest, 0.8, 1.0, cfg).state == "held"           # raw: the offset alone reads as a grasp
+    tare = TouchTare(cfg.tare_alpha)
+    for _ in range(50):
+        tare.update(rest + 0.01, resting=True)
+    for _ in range(50):
+        tare.update(rest + 0.3, resting=False)                        # closing: not learnt as rest
+    assert np.allclose(tare.base, rest + 0.01, atol=1e-3)
+    assert grasp_state(tare.apply(rest), 0.95, 1.0, cfg).state == "empty"
+    assert grasp_state(tare.apply(rest), 0.5, 1.0, cfg).state == "blocked"
+    pressed = rest.copy()
+    pressed[0:6] += 0.5                # index +3 summed
+    pressed[24:30] += 0.4              # thumb +2.4
+    s = grasp_state(tare.apply(pressed), 0.6, 1.0, cfg)
+    assert s.state == "held" and s.fingers.tolist() == [True, False, False, False, True]
+    for _ in range(200):
+        tare.update(pressed, resting=True)                            # touched while open: not learnt as rest
+    assert grasp_state(tare.apply(pressed), 0.6, 1.0, cfg).state == "held"
+    for _ in range(200):
+        tare.update(rest + 0.1, resting=True)                         # slow drift within the cap: followed
+    assert np.allclose(tare.base, rest + 0.1, atol=1e-3)
+    tare.update(rest - 0.2, resting=False)                            # a sensor relaxing lowers the rest at once
+    assert np.all(tare.base <= rest - 0.2 + 1e-9)
+    assert TouchTare().apply(None) is None
+
+
+def test_touch_config_real_tare(hand):
+    real, sim = TouchConfig.from_tool(hand, "real"), TouchConfig.from_tool(hand, "sim")
+    assert real.tare and not sim.tare
+    assert real.closed_frac < sim.closed_frac == 0.92

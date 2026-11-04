@@ -18,9 +18,10 @@ sites, the finger joints):
 
 The touch array is the hand's order: 6 FSRs per finger, fingers [index, middle, ring, pinky, thumb] (ah_node
 /ability_hand/<side>/feedback/touch; the MuJoCo sites abh_fsr0..29). Per finger the 6 values are summed, so the
-order within a finger does not matter. Thresholds per source (tool config `touch:` sim / real): MuJoCo touch
-sensors measure newtons, the real FSRs their own units — check with `ros2 topic echo .../feedback/touch` while
-squeezing a finger.
+order within a finger does not matter. On the real hand the values are tared first (TouchTare, tool config
+touch.real.tare): the threshold applies to the rise over each sensor's resting value. Thresholds per source
+(tool config `touch:` sim / real): MuJoCo touch sensors measure newtons, the real FSRs ah_wrapper's newton
+estimate — check with `ros2 topic echo .../feedback/touch` while squeezing a finger.
 """
 
 from dataclasses import dataclass
@@ -37,6 +38,9 @@ class TouchConfig:
     min_fingers: int = 2         # fingers in contact for "held", the thumb among them
     closed_frac: float = 0.92    # closure >= this * commanded closure: closed through (nothing in between)
     open_below: float = 0.3      # commanded closure below this: "open"
+    tare: bool = False           # compare the rise over each FSR's resting value (TouchTare), not the raw value
+    tare_alpha: float = 0.05     # resting-value update per sample while the hand rests open
+    tare_cap: float = 0.15       # per FSR: a rise above rest larger than this while open is a touch, not learnt
 
     @classmethod
     def from_tool(cls, tool, source):
@@ -87,6 +91,42 @@ def finger_touch(touch):
     v = np.asarray(touch if touch is not None else [], float).ravel()[:30]
     t[:len(v)] = np.nan_to_num(v)
     return t.reshape(5, 6).sum(axis=1)
+
+
+class TouchTare:
+    """Resting value of each of the 30 FSRs, to compare the rise over it with the threshold.
+
+    The real FSRs do not read 0 at rest: ah_wrapper's conversion adds C_2 = 0.88 N to every non-zero raw value
+    (about 7 per finger summed), and a sensor under preload (the thumb's) rests higher still — so a raw threshold
+    reads contact all the time. The resting value is tracked while the hand is commanded open and its fingers
+    have stopped (update(raw, resting=True): low-pass, tare_alpha per sample, only on sensors within cap of their
+    resting value — a fingertip on the table or the object while open is not learnt as rest) and always lowered to
+    a smaller raw value (a sensor that relaxes, or rest before the first open: the minimum seen so far)."""
+
+    def __init__(self, alpha=0.05, cap=0.15):
+        self.alpha, self.cap, self.base, self.n_rest = float(alpha), float(cap), None, 0
+
+    def update(self, raw, resting):
+        v = np.zeros(30)
+        r = np.nan_to_num(np.asarray(raw if raw is not None else [], float).ravel()[:30])
+        v[:len(r)] = r
+        if self.base is None:
+            self.base = v.copy()
+        elif resting:
+            near = v - self.base < self.cap
+            self.base[near] += self.alpha * (v[near] - self.base[near])
+        if resting:
+            self.n_rest += 1
+        self.base = np.minimum(self.base, v)
+
+    def apply(self, raw):
+        """The rise of each FSR over its resting value (>= 0); raw unchanged before the first sample."""
+        if raw is None or self.base is None:
+            return raw
+        v = np.zeros(30)
+        r = np.nan_to_num(np.asarray(raw, float).ravel()[:30])
+        v[:len(r)] = r
+        return np.maximum(v - self.base, 0.0)
 
 
 def closure_of(pos, open_, close):
