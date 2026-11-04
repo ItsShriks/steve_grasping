@@ -1,6 +1,6 @@
 # PSYONIC Ability Hand (right, large), coaxial on the flange: fingers along the flange axis.
 # Model: models/ability_hand (tools/build_ability_hand_mjcf.py from psyonicinc/ability-hand-api, MIT).
-# Real hand: ah_ros_py's ah_node (github.com/ItsShriks/ability-hand-ros2) + steve_grasping's
+# Real hand: taco_bandit's smart_hand_node (slip-and-deformation-aware-hand-control) + steve_grasping's
 # ability_hand_gripper (GripperCommand -> synergy) — see the README.
 #
 # Palm-down wrap grasp: the hand comes down vertically with the palm (+y of the hand frame) facing the
@@ -48,8 +48,8 @@ camera:
 
 # Synergies in the hand API's units — degrees, order [index, middle, ring, pinky, thumb flexor, thumb
 # rotator]; fingers / flexor 0 (open) .. 100, rotator 0 .. -100 (-100: thumb opposes the fingers).
-# Used as they are on the real hand (Digits on /ability_hand/<side>/target/position) and, in radians,
-# for the MuJoCo position actuators.
+# In radians for the MuJoCo position actuators; the real hand (smart_hand_node /hand/cmd_pos, in radians)
+# uses real.synergies below.
 synergies:
   open:  [10.0, 10.0, 10.0, 10.0, 0.0, -90.0]     # pre-shape: fingers straight, thumb turned under the palm, not flexed
   close: [95.0, 95.0, 95.0, 95.0, 90.0, -90.0]    # wrap: fingers and thumb close around the object, squeezing at the limit
@@ -59,7 +59,17 @@ sim:
 real:                     # control_msgs/GripperCommand position = closure (0 open .. 1 close synergy)
   open: 0.0
   close: 1.0
-  side: right             # ah_node topics /ability_hand/<side>/...
+  side: right             # smart_hand_node hand_side (ability_hand.launch.py hand_side)
+  # The real hand's own synergies (ability_hand_gripper; the sim keeps the ones above). In the model the fingers do
+  # not collide with each other, so the thumb passed through them: on the real hand the close above (thumb rotator
+  # -90, flexor 90) trapped the thumb against the middle finger and the rotator stops ~45 deg short of -90.
+  # Tested 2026-11-04 by hand: this close clears the fingers and opens again. A grasp type without real_synergy
+  # uses these on the real hand (with a warning). Open: the fingers stop fully straight at ~20/21/21/16 deg and
+  # the thumb flexor at ~27 deg (hardware self-test 2026-11-04), so open sits just inside those stops — lower
+  # targets press against them and the goal ends stalled instead of reached.
+  synergies:
+    open:  [25.0, 25.0, 25.0, 20.0, 30.0, -30.0]
+    close: [80.0, 80.0, 80.0, 80.0, 60.0, -30.0]
 
 # Shape-based grasp selection (steve_grasping.shape_grasp, active_perception_wbc --grasp_planner shape): the object's
 # primitive (sphere / cylinder / box, fitted to its depth points, else the target profile) picks one of these. Each
@@ -99,8 +109,8 @@ grasp_types:
     max_width: 0.085
 
 # Touch check (steve_grasping.hand_feedback): did the hand get the object — from the 30 FSRs (6 per finger, index ..
-# thumb) and the finger positions. sim: MuJoCo touch sensors on the same sites [N]; real: ah_node's FSR values (check
-# their scale with `ros2 topic echo /ability_hand/right/feedback/touch` while pressing a fingertip).
+# thumb) and the finger positions. sim: MuJoCo touch sensors on the same sites [N]; real: smart_hand_node's FSR values
+# (check their scale with `ros2 topic echo /hand/tactile_frame --field touch_raw` while pressing a fingertip).
 touch:
   min_fingers: 2          # the thumb + at least one finger touching: held
   closed_frac: 0.92       # closed to >= 92 % of the command without touch: empty

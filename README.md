@@ -6,7 +6,7 @@ What is mounted on Steve's UR5e flange, and how the whole-body controller (`stev
 |---|---|---|---|---|
 | `camera_only` | `models/camera_only/d415_on_flange.xml` — D415 on a short post (calibrated mount, `steve_wbc/config/gripper_camera.yaml`) | none: go to the grasp pose only | top-down, hover `grasp_dz` 5 cm above the object centre | **real robot now** (default with `use_sim_time:=false`) |
 | `robotiq_2f85` | `models/robotiq_2f85/robotiq_2f85.xml` (MuJoCo Menagerie) | 2-finger, `GripperCommand` | top-down, pads at the equator (`grasp_dz` −1.5 cm) | simulation default; identical to the model `steve_wbc` used before |
-| `ability_hand` | `models/ability_hand/abh_right_large.xml` generated from [psyonicinc/ability-hand-api](https://github.com/psyonicinc/ability-hand-api) (MIT) | PSYONIC Ability Hand, 6 motors, synergies in API degrees | palm-down wrap (35° tilt), hand rolled 180°, see below | **sim: static ball, clutter, rolling ball (`--dynamic`) grasped + held**; real: bridge tested with ah_node's virtual hand |
+| `ability_hand` | `models/ability_hand/abh_right_large.xml` generated from [psyonicinc/ability-hand-api](https://github.com/psyonicinc/ability-hand-api) (MIT) | PSYONIC Ability Hand, 6 motors, synergies in API degrees | palm-down wrap (35° tilt), hand rolled 180°, see below | **sim: static ball, clutter, rolling ball (`--dynamic`) grasped + held**; real: bridge on taco_bandit's smart_hand_node (tested with its mock hand) |
 | `dex5` | `models/dex5_1/dex5_{right,left}.xml` generated from `description/dex5_1` | Unitree Dex5-1, 16 actuated + 4 coupled joints | side grasp (horizontal approach along the palm normal) | **provisional**: model and mount in place, grasp synergy not validated |
 
 All three put the WBC's end effector — the site `pinch` (z = approach, y = closing axis) — at the same
@@ -79,20 +79,25 @@ static ball, clutter cube and a ball rolling 2–3 cm/s (`--dynamic`) are all gr
 ball without `--dynamic` is not (as with the other tools). The real camera mount should copy this: beside the
 palm, looking along it.
 
-**Real hand.** Clone [ItsShriks/ability-hand-ros2](https://github.com/ItsShriks/ability-hand-ros2) into `src/`,
-`pip install ability-hand` (ah_wrapper, pyserial), enable UART + byte stuffing in the PSYONIC app (see its README),
-`colcon build --packages-select ah_messages ah_ros_py steve_grasping`. Then
+**Real hand.** The driver is taco_bandit's `smart_hand_node` (slip-and-deformation-aware-hand-control): copy its
+`src/psyonic_msgs`, `src/taco_bandit_msgs` and `src/taco_bandit` into `src/`, `pip install ability-hand`
+(ah_wrapper, pyserial), enable UART + byte stuffing in the PSYONIC app (`We16`, `We46`, `We47` in developer mode),
+`colcon build --packages-select psyonic_msgs taco_bandit_msgs taco_bandit steve_grasping`. Then
 
 ```bash
-ros2 launch steve_grasping ability_hand.launch.py                     # ah_node + bridge (port auto)
+ros2 launch steve_grasping ability_hand.launch.py                     # smart_hand_node + bridge (the hand's FTDI port)
 ros2 action send_goal /gripper_controller/gripper_cmd control_msgs/action/GripperCommand "{command: {position: 1.0}}"
 ros2 launch steve_wbc active_perception_wbc.launch.py use_sim_time:=false tool:=ability_hand ...   # starts both
 ```
 
 `ability_hand_gripper` is a `control_msgs/GripperCommand` server (`/gripper_controller/gripper_cmd`, the WBC's
-interface): position 0..1 = open..close synergy, streamed to `/ability_hand/<side>/target/position` at 100 Hz
-(ah_node without its write thread; the hand leaves API mode without a command for 0.3 s); result `reached_goal`,
-or `stalled` when the fingers stop on an object. Without hardware: `hand_simulated:=true` (ah_node's virtual hand).
+interface): position 0..1 = open..close synergy, sent to smart_hand_node's `/hand/cmd_pos` (radians) together with
+`/hand/grasp_enable` — a close arms smart_hand_node's grasp state machine (touch -> approach -> hold, slip reflex,
+`grasp_gate_enabled`), an open releases it and position-controls the hand open. Result `reached_goal`, or `stalled`
+when the fingers stop on an object; `/ability_hand_gripper/grasp_state` adds smart_hand_node's slip / deform flags.
+The port is never auto-detected (the base's relay board is also an FTDI device): `port:=` or the launch file's
+`HAND_PORT`. smart_hand_node calibrates the FSRs for 2 s after start: do not touch the hand then. Without hardware:
+`hand_simulated:=true` (taco_bandit's mock hand).
 
 Open points: the UR adapter plate (mount `xyz`), the real camera mount (beside the palm, as in the sim) and the
 measured roll of the hand on the flange.
@@ -124,7 +129,7 @@ segments, which have no FSRs), `empty` (closed through on nothing), `open`. Same
 sensors on the same sites). The WBC (`--touch_check act`, default) re-grasps once when the hand closed `empty`
 (`--grasp_retries`), and on the robot reports success / dropped from it after the hold; in the simulation it
 prints the check next to the ground truth ("agrees" / "DISAGREES"). Thresholds: tool config `touch:` — calibrate
-`real.threshold` on the hand (`ros2 topic echo /ability_hand/right/feedback/touch`).
+`real.threshold` on the hand (`ros2 topic echo /hand/tactile_frame --field touch_raw`).
 
 **DexGraspNet 2.0** (`--grasp_backend dgn2`, model server `dgn2`, setup in
 `steve_perception/model_server/README.md`): learned dexterous grasps of the LEAP hand from one depth view,

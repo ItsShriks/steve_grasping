@@ -4,7 +4,7 @@
 #   python3 tools/sim_grasp_test.py --tool ability_hand_side --side_sweep
 # PSYONIC Ability Hand (right, large), coaxial on the flange: fingers along the flange axis.
 # Model: models/ability_hand (tools/build_ability_hand_mjcf.py from psyonicinc/ability-hand-api, MIT).
-# Real hand: ah_ros_py's ah_node (github.com/ItsShriks/ability-hand-ros2) + steve_grasping's
+# Real hand: taco_bandit's smart_hand_node (slip-and-deformation-aware-hand-control) + steve_grasping's
 # ability_hand_gripper (GripperCommand -> synergy) — see the README.
 #
 # Palm-down wrap grasp: the hand comes down vertically with the palm (+y of the hand frame) facing the
@@ -37,7 +37,7 @@ pinch:                    # object centre in the hand frame at the grasp (sim li
 
 # Synergies in the hand API's units — degrees, order [index, middle, ring, pinky, thumb flexor, thumb
 # rotator]; fingers / flexor 0 (open) .. 100, rotator 0 .. -100 (-100: thumb opposes the fingers).
-# Used as they are on the real hand (Digits on /ability_hand/<side>/target/position) and, in radians,
+# Used as they are on the real hand (smart_hand_node /hand/cmd_pos) and, in radians,
 # for the MuJoCo position actuators.
 synergies:
   open:  [10.0, 10.0, 10.0, 10.0, 0.0, -90.0]     # pre-shape: fingers straight, thumb turned under the palm, not flexed
@@ -48,4 +48,4 @@ sim:
 real:                     # control_msgs/GripperCommand position = closure (0 open .. 1 close synergy)
   open: 0.0
   close: 1.0
-  side: right             # ah_node topics /ability_hand/<side>/...
+  side: right             # smart_hand_node hand_side (ability_hand.launch.py hand_side)

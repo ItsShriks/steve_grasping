@@ -9,7 +9,9 @@ hand_cycle.py — open/close the Ability Hand continuously through the GripperCo
     python3 tools/hand_cycle.py --cycles 20              # stop after 20 open/close cycles
 
 Each goal waits for the bridge's result (reached or stalled), so a blocked finger does not pile up
-goals. Ctrl+C opens the hand (closure --min) before exiting.
+goals. If the hand does not get back open (the open goal stalls short of it, e.g. the thumb caught on a
+finger), the cycle stops instead of closing it again. Ctrl+C opens the hand (closure --min) before exiting.
+Run nothing else that sends gripper goals at the same time.
 """
 
 import argparse
@@ -32,6 +34,8 @@ def main():
     ap.add_argument("--pause", type=float, default=0.5, help="wait at each end [s]")
     ap.add_argument("--cycles", type=int, default=0, help="0: forever")
     ap.add_argument("--timeout", type=float, default=10.0, help="per goal [s]")
+    ap.add_argument("--open_tol", type=float, default=0.1,
+                    help="the open goal must get within this closure of --min, else the cycle stops")
     a = ap.parse_args()
 
     rclpy.init(signal_handler_options=SignalHandlerOptions.NO)  # Ctrl+C keeps the context: open the hand
@@ -72,6 +76,11 @@ def main():
                     r = go(p)
                     if r is not None and r.stalled:
                         log.warn(f"stalled at closure {r.position:.2f} (target {p:.2f})")
+                if half is open_ and (r is None or r.position > lo + a.open_tol):
+                    got = "no result" if r is None else f"closure {r.position:.2f}"
+                    log.error(f"the hand did not open ({got}, target {lo:.2f}): stopping, check the thumb / "
+                              "fingers are free")
+                    return
                 time.sleep(a.pause)
             n += 1
             log.info(f"cycle {n} done")

@@ -117,9 +117,13 @@ def site_in_type(tool, grasp_type=None):
     return Rg.T @ tool.pinch_R, Rg.T @ (tool.pinch_pos - pg)
 
 
-def synergies(tool, grasp_type=None):
-    """(open, close) motor targets of a grasp type (config units), default: the tool's synergies."""
-    syn = (grasp_types(tool).get(grasp_type) or {}).get("synergy") or (tool.config or {}).get("synergies") or {}
+def synergies(tool, grasp_type=None, source="sim"):
+    """(open, close) motor targets of a grasp type (config units), default: the tool's synergies. source "real":
+    the type's real_synergy, else the tool's real.synergies (the real hand's tested poses), else as in the sim."""
+    gt = grasp_types(tool).get(grasp_type) or {}
+    syn = gt.get("synergy") or (tool.config or {}).get("synergies") or {}
+    if source == "real":
+        syn = gt.get("real_synergy") or (getattr(tool, "real", None) or {}).get("synergies") or syn
     if "open" not in syn or "close" not in syn:
         raise ValueError(f"tool {tool.name}: no synergy open / close for grasp type {grasp_type}")
     return np.asarray(syn["open"], float), np.asarray(syn["close"], float)

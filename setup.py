@@ -26,7 +26,7 @@ setup(
         *tree('models'),       # MuJoCo models of the tools (attached to steve_wbc's robot model)
         *tree('description'),  # Dex5-1 URDF + meshes (unitree_ros, BSD-3)
         *tree('config'),       # tool configs (config/tools/<tool>.yaml)
-        *tree('launch'),       # ability_hand.launch.py (ah_node + GripperCommand bridge)
+        *tree('launch'),       # ability_hand.launch.py (taco_bandit smart_hand_node + GripperCommand bridge)
     ],
     install_requires=['setuptools'],
     zip_safe=True,

@@ -247,3 +247,14 @@ def test_touch_config_real_tare(hand):
     real, sim = TouchConfig.from_tool(hand, "real"), TouchConfig.from_tool(hand, "sim")
     assert real.tare and not sim.tare
     assert real.closed_frac < sim.closed_frac == 0.92
+
+
+def test_real_synergies(hand):
+    from steve_grasping.hand_geometry import synergies
+    so, sc = synergies(hand, None)
+    ro, rc = synergies(hand, None, "real")
+    assert so[5] == -90.0 and ro[5] == -30.0                           # sim unchanged, real thumb rotator reachable
+    assert rc[4] < sc[4] and rc[0] < sc[0]                             # real close does not trap the thumb
+    po, pc = synergies(hand, "pinch", "real")                          # no real_synergy: the real default
+    assert np.array_equal(po, ro) and np.array_equal(pc, rc)
+    assert synergies(hand, "pinch")[0][2] == 100.0                     # sim pinch unchanged

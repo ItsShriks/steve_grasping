@@ -1,6 +1,6 @@
 """
 hand_feedback.py — did the hand get the object? From the hand's own sensors, the same way on the real Ability Hand
-(ah_node: 30 FSR touch values + 6 motor positions) and in MuJoCo (the model's 30 touch sensors on the same FSR
+(taco_bandit smart_hand_node: 30 FSR touch values + 6 motor positions) and in MuJoCo (the model's 30 touch sensors on the same FSR
 sites, the finger joints):
 
     from steve_grasping.hand_feedback import TouchConfig, grasp_state
@@ -16,12 +16,12 @@ sites, the finger joints):
   empty    the fingers closed (nearly) all the way without touching anything: nothing in the hand
   open     commanded open
 
-The touch array is the hand's order: 6 FSRs per finger, fingers [index, middle, ring, pinky, thumb] (ah_node
-/ability_hand/<side>/feedback/touch; the MuJoCo sites abh_fsr0..29). Per finger the 6 values are summed, so the
+The touch array is the hand's order: 6 FSRs per finger, fingers [index, middle, ring, pinky, thumb] (smart_hand_node
+/hand/tactile_frame touch_raw; the MuJoCo sites abh_fsr0..29). Per finger the 6 values are summed, so the
 order within a finger does not matter. On the real hand the values are tared first (TouchTare, tool config
 touch.real.tare): the threshold applies to the rise over each sensor's resting value. Thresholds per source
 (tool config `touch:` sim / real): MuJoCo touch sensors measure newtons, the real FSRs ah_wrapper's newton
-estimate — check with `ros2 topic echo .../feedback/touch` while squeezing a finger.
+estimate — check with `ros2 topic echo /hand/tactile_frame --field touch_raw` while squeezing a finger.
 """
 
 from dataclasses import dataclass

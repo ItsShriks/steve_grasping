@@ -13,7 +13,8 @@
   <exec_depend>rclpy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>control_msgs</exec_depend>
-  <!-- real Ability Hand: ah_messages + ah_ros_py from github.com/ItsShriks/ability-hand-ros2 (not in rosdep) -->
+  <!-- real Ability Hand: psyonic_msgs, taco_bandit_msgs + taco_bandit (smart_hand_node) from
+       slip-and-deformation-aware-hand-control/src (not in rosdep) -->
 
   <test_depend>python3-pytest</test_depend>
 
