@@ -44,6 +44,10 @@ def _hand_node(context):
         # 0 A only after it stays set for 15 s instead of 0.5 s (a WBC pick: close + 15 cm lift + --hold_time) —
         # holds longer than that still go limp
         "hot_cold_grace_sec": 15.0,
+        # no D term in the velocity loop: under load ~half the hand's replies are lost (2026-11-04), the velocity
+        # estimate from the remaining positions is noisy and kd turned it into current spikes (up to 19 A asked)
+        "kd": 0.0,
+        "max_current_limit": float(C("max_current").perform(context)),
     }
     return [Node(package="taco_bandit", executable="controller", name="smart_hand_node", output="screen",
                  condition=IfCondition(C("launch_hand_node")), parameters=[params],
@@ -58,6 +62,9 @@ def generate_launch_description():
         DeclareLaunchArgument("thumb_invert_feedback", default_value="true", choices=["true", "false"],
                               description="flip the thumb rotator's position / velocity in smart_hand_node's readout "
                                           "like its current command (positive = opposed); the bridge follows"),
+        DeclareLaunchArgument("max_current", default_value="0.5",
+                              description="smart_hand_node max_current_limit [A], all motors: lower = gentler grip "
+                                          "and less load on the hand's supply (fewer lost replies)"),
         DeclareLaunchArgument("tool", default_value="ability_hand", description="steve_grasping tool config"),
         DeclareLaunchArgument("action", default_value="/gripper_controller/gripper_cmd"),
         DeclareLaunchArgument("launch_hand_node", default_value="true",
