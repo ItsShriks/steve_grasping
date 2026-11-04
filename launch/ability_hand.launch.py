@@ -41,8 +41,9 @@ def _hand_node(context):
         # constant grip current turned the thumb fully under the palm and trapped it against the fingers, 2026-11-04)
         "fsm_motor_mask": [1, 1, 1, 1, 1, 0],
         # the hand's hot/cold byte is also set while a finger is blocked (end stop, the thumb, a held object):
-        # 0 A only after it stays set for 5 s instead of 0.5 s — holds longer than that still go limp
-        "hot_cold_grace_sec": 5.0,
+        # 0 A only after it stays set for 15 s instead of 0.5 s (a WBC pick: close + 15 cm lift + --hold_time) —
+        # holds longer than that still go limp
+        "hot_cold_grace_sec": 15.0,
     }
     return [Node(package="taco_bandit", executable="controller", name="smart_hand_node", output="screen",
                  condition=IfCondition(C("launch_hand_node")), parameters=[params],
