@@ -29,6 +29,9 @@ import numpy as np
 
 TOOLS = ("camera_only", "robotiq_2f85", "dex5", "ability_hand")
 DEFAULT_TOOL = os.environ.get("STEVE_TOOL", "robotiq_2f85")
+# the Ability Hand's FTDI TTL-232R cable (launch/ability_hand.launch.py; the base's own FTDI devices are the relay
+# board and the scanners, so the port is never auto-detected)
+HAND_PORT = "/dev/serial/by-id/usb-FTDI_TTL232R_FTAM6SIZ-if00-port0"
 
 
 def package_dir():

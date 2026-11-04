@@ -31,8 +31,10 @@ pinch:                    # object centre in the hand frame at the grasp (sim li
 # palm half: an arm putting the D415 100 mm off the flange axis beside the palm (the Psyonic D405 bracket put its
 # camera at 79 mm, which collided with the thumb), its view tilted 40 deg outwards = along the hand's approach line
 # at 0.3-0.5 m; back half: a tray on the back of the hand for the PSYONIC breakout board and power switch. Clearance
-# (hand open / closed): D415 28 mm, collar 10.7 mm. After mounting: run gripper_camera_calibrator and copy
-# xyz / quat_xyzw from steve_wbc/config/gripper_camera.yaml into xyz / quat_xyzw here.
+# (hand open / closed): D415 28 mm, collar 10.7 mm. This is also the design pose steve_wbc gripper_camera.launch.py
+# publishes (mount:=ability_hand) until the mount is calibrated, and the D415 in the robot description (steve_simulation
+# ability_hand_tool.urdf.xacro). After mounting: run `gripper_camera_calibrator --mount ability_hand` and copy xyz /
+# quat_xyzw from steve_wbc/config/gripper_camera_ability_hand.yaml into xyz / quat_xyzw here (and the xacro).
 camera:
   xyz: [0.0325, -0.1064, 0.0457]       # colour optical frame in ur5etool0 [m] (gripper_camera.yaml convention)
   quat_xyzw: [0.0, -0.34202, 0.93969, 0.0]  # optical z along the flange axis tilted 40 deg outwards (-y)

@@ -22,8 +22,7 @@ from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration as C
 from launch_ros.actions import Node
 
-# the Ability Hand's FTDI TTL-232R cable on Steve (the base's own FTDI devices are the relay board and the scanners)
-HAND_PORT = "/dev/serial/by-id/usb-FTDI_TTL232R_FTAM6SIZ-if00-port0"
+from steve_grasping.tools import HAND_PORT  # the Ability Hand's FTDI TTL-232R cable on Steve
 
 
 def _hand_node(context):
