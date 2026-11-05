@@ -17,9 +17,11 @@ hold_ref: lifted          # the wrap pulls the object into the palm: the hold ch
 support_contact: true     # the fingers wrap down to the table (wrap grasp of a ball lying on it): in DESCEND /
                           # GRASP the WBC drops the table margin for the hand's collision spheres (not the arm's)
 mount:                    # tool0 -> hand base (centre of the hand's wrist flange face, fingers along z)
-  xyz: [0.0, 0.0, 0.0]    # straight on the flange: the camera collar clamps around wrist 3, nothing in between
-  rpy_deg: [0.0, 0.0, 180.0]  # roll of the hand about the flange axis: palm towards -y of tool0, back of the hand +y
-                              # (electronics tray), the D415 beside the palm
+  xyz: [0.0, 0.0, 0.015]  # on a black adapter ring: fingertips measured ~19.7 cm out from the flange face (2026-11-05,
+                          # phone AR measure) vs 18.2 cm with the hand straight on the flange -> +1.5 cm (+-1 cm)
+  rpy_deg: [0.0, 0.0, 0.0]    # roll of the hand about the flange axis: palm towards +y of tool0 (checked on the robot
+                              # 2026-11-05: palm and camera both face the floor in the park pose; the camera calibration
+                              # puts it at +y). Until 2026-11-04 this was 180 (palm -y, the old collar design)
 pinch:                    # object centre in the hand frame at the grasp (sim lift test: tools/sim_grasp_test.py)
   xyz: [-0.010, 0.055, 0.110]   # 5.5 cm out of the palm, 11 cm along the fingers
   rpy_deg: [-55.0, 0.0, 0.0]    # palm down, tilted 35 deg (fingers pointing down): approach (pinch z) 35 deg from the
@@ -28,8 +30,8 @@ pinch:                    # object centre in the hand frame at the grasp (sim li
 
 # The real wrist camera, a RealSense D435i (90 x 25 x 25 mm, depth from ~0.20 m at 848x480; the D415 before: ~0.31 m),
 # as mounted 2026-11-05 (photo): on
-# the UR wrist 3 ring at the flange, on the PALM side (-y of tool0, the side the palm faces), its bottom on the ring,
-# lenses looking along the flange axis = along the fingers; the long side across the hand. The pose below
+# the UR wrist 3 ring at the flange, on the PALM side (+y of tool0, the side the palm faces), its bottom on the ring,
+# looking along the fingers but tilted 19 deg outwards (away from the hand's axis); the long side across the hand. The pose below
 # is read off the photo (about +-1 cm / 5 deg): it is the design pose steve_wbc gripper_camera.launch.py publishes
 # (mount:=ability_hand) until the mount is calibrated, and the D415 in the robot description (steve_simulation
 # ability_hand_tool.urdf.xacro). After `gripper_camera_calibrator --mount ability_hand`: copy xyz / quat_xyzw from
@@ -37,14 +39,20 @@ pinch:                    # object centre in the hand frame at the grasp (sim li
 # camera. (2026-10-26 .. 11-04 the design was a printed collar putting it 100 mm off the axis beside the palm,
 # steve_grasping/hardware/hand_camera_mount — not what is mounted.)
 camera:
-  xyz: [-0.030, -0.055, 0.005]         # colour optical frame in ur5etool0 [m] (gripper_camera.yaml convention)
-  quat_xyzw: [0.0, 0.0, 0.0, 1.0]      # optical z along the flange axis, image down towards the axis (+y)
+  # calibrated 2026-11-05 (gripper_camera_calibrator --mount ability_hand, 7 views, ball RMS 0.36 cm, +-14 mm / +-2 deg;
+  # the tilt agrees within 1 deg with the floor-plane estimate from two wrist-3 views)
+  xyz: [-0.04504, 0.04781, 0.03224]    # colour optical frame in ur5etool0 [m] (gripper_camera.yaml convention)
+  quat_xyzw: [-0.168719, 0.014333, -0.004644, 0.985549]  # optical z 19 deg from the flange axis towards +y (outwards)
   fovy_deg: 42                         # D435i colour: 69 x 42 deg
   min_range: 0.20                      # no depth closer (848x480): default --min_detect_range (sim and robot)
   housing_size: [0.090, 0.025, 0.025]  # in the optical frame: long side (x), height (y), depth along the view (z)
   housing_offset: [0.030, 0.0, -0.0125]  # housing centre in the optical frame (colour camera ~3 cm off-centre)
   bracket:                             # its mount on the wrist ring as boxes in ur5etool0: centre xyz, full size [m]
-    - {xyz: [0.0, -0.039, -0.005], size: [0.050, 0.008, 0.030]}    # plate between the ring and the camera
+    - {xyz: [0.0, 0.031, 0.020], size: [0.050, 0.008, 0.030]}      # plate between the ring and the camera
+  # the real thumb clears the camera (opened / closed on the robot 2026-11-05); the model's thumb base overlaps the
+  # calibrated housing by up to 6 mm (within the calibration's +-14 mm), and the sim's open synergy turns it under the
+  # palm (-90; the real hand -30) — without this the sim's thumb jams on the camera and the wrap does not close
+  no_contact: [abh_thumb_metacarp, abh_thumb_mcp]
 
 # Synergies in the hand API's units — degrees, order [index, middle, ring, pinky, thumb flexor, thumb
 # rotator]; fingers / flexor 0 (open) .. 100, rotator 0 .. -100 (-100: thumb opposes the fingers).

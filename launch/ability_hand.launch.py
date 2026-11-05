@@ -19,7 +19,7 @@ arm's.
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration as C
+from launch.substitutions import LaunchConfiguration as C, PythonExpression
 from launch_ros.actions import Node
 
 from steve_grasping.tools import HAND_PORT  # the Ability Hand's FTDI TTL-232R cable on Steve
@@ -72,5 +72,8 @@ def generate_launch_description():
         OpaqueFunction(function=_hand_node),
         Node(package="steve_grasping", executable="ability_hand_gripper", name="ability_hand_gripper",
              output="screen", parameters=[{"tool": C("tool"), "action": C("action"),
-                                           "thumb_inverted": C("thumb_invert_feedback")}]),
+                                           "thumb_inverted": C("thumb_invert_feedback"),
+                                           # the mock hand's values may stay constant: no frozen-data check there
+                                           "frozen_timeout": PythonExpression(["0.0 if '", C("simulated_hand"),
+                                                                               "'.lower() == 'true' else 1.0"])}]),
     ])

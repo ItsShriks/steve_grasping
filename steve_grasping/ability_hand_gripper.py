@@ -91,6 +91,8 @@ class AbilityHandGripper(Node):
                                                        # velocity loop ramps the current up first
         p("timeout", 6.0)                              # s per goal
         p("open_on_start", False)
+        p("frozen_timeout", 1.0)                       # s with bit-identical frames -> feedback stale (0: off, e.g.
+                                                       # taco_bandit's mock hand, whose values may stay constant)
         p("grasp_type_topic", "/ability_hand_gripper/grasp_type")
         p("grasp_state_topic", "/ability_hand_gripper/grasp_state")
         g = lambda n: self.get_parameter(n).value
@@ -114,6 +116,11 @@ class AbilityHandGripper(Node):
         self.lock = threading.Lock()
         self.target = self.open.copy() if g("open_on_start") else None
         self.fb, self.fb_t, self.touch = None, -np.inf, None
+        # smart_hand_node keeps publishing the hand's LAST values when the hand stops answering (2026-11-05, on the
+        # robot's supply: frozen twice, and a close on frozen data was taken for a grasp). A live hand's encoders and
+        # FSRs always change a little: feedback counts as fresh only while the frame's content changes
+        self.frame_key, self.frozen_warned, self.change_t = None, False, -np.inf
+        self.frozen_timeout = float(g("frozen_timeout"))
         self.event, self.event_t = None, -np.inf
         self.still_ref, self.moved_t = None, time.monotonic()   # fingers at rest since moved_t (tare)
         cb = ReentrantCallbackGroup()
@@ -138,8 +145,11 @@ class AbilityHandGripper(Node):
         raw = np.asarray(msg.touch_raw, float)
         if len(msg.joint_position) >= 6:
             fb, now = from_node_rad(msg.joint_position[:6], self.thumb_inverted), time.monotonic()
+            key = (tuple(msg.joint_position[:6]), tuple(msg.touch_raw))
             with self.lock:
-                self.fb, self.fb_t = fb, now
+                if key != self.frame_key or self.frozen_timeout <= 0:
+                    self.change_t = now
+                self.frame_key, self.fb, self.fb_t = key, fb, now
                 if self.still_ref is None or np.max(np.abs(fb - self.still_ref)) > 1.0:
                     self.still_ref, self.moved_t = fb, now
         if self.tare is not None:
@@ -177,10 +187,14 @@ class AbilityHandGripper(Node):
                 self.target = o + self.cmd * (c - o)
         self.get_logger().info(f"grasp type {name or 'default'}: open {o.tolist()}, close {c.tolist()} [deg]")
 
+    def _fresh(self, now):
+        """Feedback from the hand: recent frames whose content still changes (call with self.lock held)."""
+        return now - self.fb_t < 0.5 and (self.frozen_timeout <= 0 or now - self.change_t < self.frozen_timeout)
+
     def state(self):
-        """hand_feedback.GraspState of the hand now (None without position feedback)."""
+        """hand_feedback.GraspState of the hand now (None without fresh position feedback)."""
         with self.lock:
-            fb, fresh = (None if self.fb is None else self.fb.copy()), time.monotonic() - self.fb_t < 0.5
+            fb, fresh = (None if self.fb is None else self.fb.copy()), self._fresh(time.monotonic())
             o, c, cmd = self.open.copy(), self.close.copy(), self.cmd
         if fb is None or not fresh:
             return None
@@ -188,6 +202,16 @@ class AbilityHandGripper(Node):
         return grasp_state(touch, closure_of(fb, o, c), cmd, self.touch_cfg)
 
     def _publish_state(self):
+        with self.lock:
+            age, have = time.monotonic() - self.change_t, self.fb is not None and self.frozen_timeout > 0
+        if have and age > self.frozen_timeout and not self.frozen_warned:
+            self.get_logger().error(f"hand data frozen for {age:.1f} s (smart_hand_node repeats the last values: hand "
+                                    "off / supply dip?) -> no grasp_state, goals abort. Power-cycle the hand and "
+                                    "restart ability_hand.launch.py")
+            self.frozen_warned = True
+        elif age < self.frozen_timeout and self.frozen_warned:
+            self.get_logger().info("hand data live again")
+            self.frozen_warned = False
         st = self.state()
         if st is not None:
             d = dict(st.as_dict(), type=self.gtype)
@@ -231,10 +255,10 @@ class AbilityHandGripper(Node):
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
                 return res
-            with self.lock:
-                fb, fb_age = (None if self.fb is None else self.fb.copy()), time.monotonic() - self.fb_t
             now = time.monotonic()
-            if fb is not None and fb_age < 0.5:
+            with self.lock:
+                fb, fresh = (None if self.fb is None else self.fb.copy()), self._fresh(now)
+            if fb is not None and fresh:
                 if last_pos is None or np.max(np.abs(fb - last_pos)) > 0.5:
                     last_pos, last_move_t = fb, now
                 err = np.abs(fb - target)

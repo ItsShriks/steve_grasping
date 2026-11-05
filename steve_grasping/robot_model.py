@@ -162,10 +162,11 @@ def compose(robot_xml, hand, mount_body="hand_mount"):
     for other in ("wrist_3_link", "wrist_d405_mount", "wrist_camera_link", *cam_bodies):
         if any(b.get("name") == other for b in rt.iter("body")):
             ET.SubElement(rc, "exclude", body1=other, body2=hand_body.get("name"))
-    # the tool's camera and its bracket are one rigid part on the flange (the fingers still collide with them)
+    # the tool's camera and its bracket are one rigid part on the flange (the fingers still collide with them, except
+    # the tool config's camera.no_contact bodies: links the real hand moves clear of, which the model overlaps)
     for i, cb in enumerate(cam_bodies):
         ET.SubElement(rc, "exclude", body1=cb, body2="wrist_3_link")
-        for other in cam_bodies[i + 1:]:
+        for other in [*cam_bodies[i + 1:], *(cam_cfg or {}).get("no_contact", [])]:
             ET.SubElement(rc, "exclude", body1=cb, body2=other)
     # exclusions that name bodies no longer in the model (the removed D405) would not compile
     bodies = {b.get("name") for b in rt.iter("body")} | {"world"}
