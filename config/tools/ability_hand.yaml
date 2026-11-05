@@ -26,27 +26,25 @@ pinch:                    # object centre in the hand frame at the grasp (sim li
                                 # palm normal. Flat (-90: flange horizontal) the forearm / wrist came down to the
                                 # table and the WBC's margin stopped the descent; tilted the grasp is as robust
 
-# The real wrist camera, a RealSense D415 (99 x 23 x 20 mm, no depth below ~0.30 m), on the 3D-printed wrist collar
-# steve_grasping/hardware/hand_camera_mount (hand_camera_mount.py -> stl/): two halves clamped around UR wrist 3 —
-# palm half: an arm putting the D415 100 mm off the flange axis beside the palm (the Psyonic D405 bracket put its
-# camera at 79 mm, which collided with the thumb), its view tilted 40 deg outwards = along the hand's approach line
-# at 0.3-0.5 m; back half: a tray on the back of the hand for the PSYONIC breakout board and power switch. Clearance
-# (hand open / closed): D415 28 mm, collar 10.7 mm. This is also the design pose steve_wbc gripper_camera.launch.py
-# publishes (mount:=ability_hand) until the mount is calibrated, and the D415 in the robot description (steve_simulation
-# ability_hand_tool.urdf.xacro). After mounting: run `gripper_camera_calibrator --mount ability_hand` and copy xyz /
-# quat_xyzw from steve_wbc/config/gripper_camera_ability_hand.yaml into xyz / quat_xyzw here (and the xacro).
+# The real wrist camera, a RealSense D435i (90 x 25 x 25 mm, depth from ~0.20 m at 848x480; the D415 before: ~0.31 m),
+# as mounted 2026-11-05 (photo): on
+# the UR wrist 3 ring at the flange, on the PALM side (-y of tool0, the side the palm faces), its bottom on the ring,
+# lenses looking along the flange axis = along the fingers; the long side across the hand. The pose below
+# is read off the photo (about +-1 cm / 5 deg): it is the design pose steve_wbc gripper_camera.launch.py publishes
+# (mount:=ability_hand) until the mount is calibrated, and the D415 in the robot description (steve_simulation
+# ability_hand_tool.urdf.xacro). After `gripper_camera_calibrator --mount ability_hand`: copy xyz / quat_xyzw from
+# steve_wbc/config/gripper_camera_ability_hand.yaml here (and into the xacro) — the WBC's visibility task aims this
+# camera. (2026-10-26 .. 11-04 the design was a printed collar putting it 100 mm off the axis beside the palm,
+# steve_grasping/hardware/hand_camera_mount — not what is mounted.)
 camera:
-  xyz: [0.0325, -0.1064, 0.0457]       # colour optical frame in ur5etool0 [m] (gripper_camera.yaml convention)
-  quat_xyzw: [0.0, -0.34202, 0.93969, 0.0]  # optical z along the flange axis tilted 40 deg outwards (-y)
-  fovy_deg: 42                         # D415 colour: 69 x 42 deg
-  min_range: 0.30                      # no depth closer: default --min_detect_range (sim and robot)
-  housing_size: [0.099, 0.023, 0.020]  # in the optical frame: long side (x), height (y), depth along the view (z)
-  housing_offset: [0.0325, 0.0, -0.010]  # housing centre in the optical frame (colour camera ~3.25 cm off-centre)
-  bracket:                             # the printed collar's arm and tray as boxes in ur5etool0: centre xyz, full size [m]
-    - {xyz: [0.0, -0.0585, 0.0025], size: [0.040, 0.033, 0.035]}   # arm, root on the collar
-    - {xyz: [0.0, -0.0850, 0.0200], size: [0.050, 0.020, 0.030]}   # arm, towards the camera plate
-    - {xyz: [0.0, 0.0545, 0.0225], size: [0.074, 0.009, 0.071]}    # electronics tray
-    - {xyz: [0.0, 0.0615, 0.0250], size: [0.074, 0.014, 0.046]}    # breakout board + power switch on it
+  xyz: [-0.030, -0.055, 0.005]         # colour optical frame in ur5etool0 [m] (gripper_camera.yaml convention)
+  quat_xyzw: [0.0, 0.0, 0.0, 1.0]      # optical z along the flange axis, image down towards the axis (+y)
+  fovy_deg: 42                         # D435i colour: 69 x 42 deg
+  min_range: 0.20                      # no depth closer (848x480): default --min_detect_range (sim and robot)
+  housing_size: [0.090, 0.025, 0.025]  # in the optical frame: long side (x), height (y), depth along the view (z)
+  housing_offset: [0.030, 0.0, -0.0125]  # housing centre in the optical frame (colour camera ~3 cm off-centre)
+  bracket:                             # its mount on the wrist ring as boxes in ur5etool0: centre xyz, full size [m]
+    - {xyz: [0.0, -0.039, -0.005], size: [0.050, 0.008, 0.030]}    # plate between the ring and the camera
 
 # Synergies in the hand API's units — degrees, order [index, middle, ring, pinky, thumb flexor, thumb
 # rotator]; fingers / flexor 0 (open) .. 100, rotator 0 .. -100 (-100: thumb opposes the fingers).
